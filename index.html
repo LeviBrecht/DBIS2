@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Quick Start - Leaflet</title>
+
+    <link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script src="https://code.jquery.com/jquery-3.7.0.slim.min.js" integrity="sha256-tG5mcZUtJsZvyKAxYLVXrmjKBVLd6VpVccqz/r4ypFE=" crossorigin="anonymous"></script>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
+        .leaflet-container {
+            height: 400px;
+            width: 600px;
+            max-width: 100%;
+            max-height: 100%;
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        #controls p {
+            margin: 5px 0;
+        }
+        #route-length-box {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background-color: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+
+</head>
+<body>
+
+<div id="map" style="width: 600px; height: 400px;"></div>
+<div>
+    Name: <input type="text" id="name" name="name"/>
+</div>
+<div id="controls">
+    <p>Wegstrecke definieren durch Klicks auf die Karte.</p>
+    <p>Wegpunkte: <span id="waypoints-count">0</span></p>
+</div>
+<div id="route-length-box">
+    <p>Streckenlänge: <span id="route-length">0</span> Meter</p>
+</div>
+
+<script type="module">
+    import "data:text/javascript,self.module = {}";
+    import "https://unpkg.com/@neondatabase/serverless";
+    window.N = module.exports;
+</script>
+<script>
+    var southWest = L.latLng(49, -1), northEast = L.latLng(52, 1);
+    var bounds = L.latLngBounds(southWest, northEast);
+    const map = L.map('map', {maxBounds: bounds, maxBoundsViscosity: 1.0, zoomControl: false}).setView([51.505, -0.09], 13);
+    map.dragging.disable();
+    map.scrollWheelZoom.disable();
+
+    const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    const marker = L.marker([51.5, -0.09]).addTo(map)
+        .bindPopup('<b>Hello world!</b><br />I am a popup.').openPopup();
+
+    const circle = L.circle([51.508, -0.11], {
+        color: 'red',
+        fillColor: '#f03',
+        fillOpacity: 0.5,
+        radius: 500
+    }).addTo(map).bindPopup('I am a circle.');
+
+    const polygon = L.polygon([
+        [51.509, -0.08],
+        [51.503, -0.06],
+        [51.51, -0.047]
+    ]).addTo(map).bindPopup('I am a polygon.');
+
+    const popup = L.popup()
+        .setLatLng([51.513, -0.09])
+        .setContent('I am a standalone popup.')
+        .openOn(map);
+
+    const db_url = "postgresql://student:woshooyaefohshe0eegh8uSh5sa5pi3y@ep-raspy-breeze-a2hcl0g9.eu-central-1.aws.neon.tech/dbis2?sslmode=require";
+
+    async function add_point(lon, lat) {
+        const data = {"lon": lon, "lat": lat};
+
+        const sql = N.neon(db_url);
+        const [pt] = await sql(`SELECT st_asgeojson(sthsth())`);
+        console.log(pt)
+    }
+
+    const waypoints = [];
+    let polyline = null;
+
+    function calculateRouteLength() {
+        let length = 0;
+        for (let i = 1; i < waypoints.length; i++) {
+            const from = waypoints[i - 1];
+            const to = waypoints[i];
+            length += map.distance(from, to);
+        }
+        document.getElementById('route-length').innerText = Math.round(length);
+    }
+
+    function updateRoute() {
+        if (polyline) {
+            map.removeLayer(polyline);
+        }
+
+        // Erstellen der Linie zwischen Wegpunkten
+        polyline = L.polyline(waypoints, { color: 'blue' }).addTo(map);
+        document.getElementById('waypoints-count').innerText = waypoints.length;
+        calculateRouteLength();
+    }
+
+    function onMapClick(e) {
+        console.log($("#name").val());
+        popup.setLatLng(e.latlng)
+            .setContent(`You clicked the map at ${e.latlng.toString()}`)
+            .openOn(map);
+        console.log(e.latlng);
+        add_point(e.latlng.lng, e.latlng.lat);
+
+        const { lat, lng } = e.latlng;
+        waypoints.push([lat, lng]);
+
+        // Marker hinzufügen
+        L.marker([lat, lng]).addTo(map).bindPopup(`Wegpunkt: ${lat.toFixed(5)}, ${lng.toFixed(5)}`).openPopup();
+
+        // Route aktualisieren
+        updateRoute();
+    }
+
+    map.on('click', onMapClick);
+
+</script>
+
+</body>
+</html>
